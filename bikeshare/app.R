@@ -25,6 +25,14 @@ stations <- fromJSON(content(g, "text"))$result$records
 stations <- stations %>% 
     select("Station #","Station Name", "Latitude", "Longitude", "# of Racks")
 
+#changing the datatypes for some of the columns in the stations dataset
+options(digits=6)
+
+stations <- stations %>% 
+    mutate(Longitude = as.numeric(Longitude),
+           Latitude = as.numeric(Latitude),
+           `# of Racks` = as.numeric(`# of Racks`))
+
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -57,17 +65,24 @@ server <- function(input, output) {
 
     output$pitt <- renderLeaflet({
 
-        pitt.map <- leaflet() %>%
+        pitt.map <- leaflet(data = stations) %>%
             #selecting a basemap
             addTiles(urlTemplate = "http://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", attribution = "Google", group = "Google") %>%
             addProviderTiles(provider = providers$Esri.NatGeoWorldMap, group = "NatGeo") %>% 
             #setting the view to just pittsburgh
             setView(-79.995888, 40.440624, 12)  %>% 
-            addLayersControl(baseGroups = c("Google", "NatGeo"))
+            addLayersControl(baseGroups = c("Google", "NatGeo")) %>% 
+            #add markers on the map for the healthy ride bike station locations
+            addMarkers(~Longitude, ~Latitude, clusterOptions = markerClusterOptions())
+            
+        
+        
 
         pitt.map
     })
     
+   #leafletProxy("pitt", data = stations) 
+   
    output$stations_table <- DT::renderDataTable({
        
        DT::datatable(data = stations,
