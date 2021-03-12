@@ -2,18 +2,35 @@
 library(shiny)
 library(leaflet)
 library(leaflet.extras)
-
+library(DT)
 
 #To-do:
 # Base map: Census tracts in Pittsburgh
 #Layers: 1. HealthyRide Stations
 #        2. Demographic information by Census Tract
 
+
+
+#Loading in the Pittsburgh HealthyRide Stations data using WPRDC API
+# URL Encode the query
+q <- 'SELECT * FROM "395ca98e-75a4-407b-9b76-d2519da28c4a"'
+formatQuery <- URLencode(q, repeated = TRUE)
+# Build URL for GET request
+url <- paste0("https://data.wprdc.org/api/3/action/datastore_search_sql?sql=", formatQuery)
+# Run Get Request
+g <- GET(url)
+stations <- fromJSON(content(g, "text"))$result$records
+
+#subsetting data to desired columns
+stations <- stations %>% 
+    select("Station #","Station Name", "Latitude", "Longitude", "# of Racks")
+
+
 # Define UI for application that draws a histogram
 ui <- fluidPage(
 
     # Application title
-    titlePanel("Micro Transit Access in Pittsburgh"),
+    titlePanel("Micro-Transit Access in Pittsburgh"),
 
     # # Sidebar with a slider input for number of bins 
     # sidebarLayout(
@@ -28,7 +45,8 @@ ui <- fluidPage(
         # Show a plot of the generated distribution
         mainPanel(
             # Map Output
-            leafletOutput("pitt")
+            leafletOutput("pitt"),
+            dataTableOutput("stations_table")
         )
     )
 #)
@@ -49,6 +67,14 @@ server <- function(input, output) {
 
         pitt.map
     })
+    
+   output$stations_table <- DT::renderDataTable({
+       
+       DT::datatable(data = stations,
+                     rownames = FALSE)
+   })
+   
+    
 }
 
 # Run the application 
