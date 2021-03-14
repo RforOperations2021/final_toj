@@ -3,6 +3,8 @@ library(shiny)
 library(leaflet)
 library(leaflet.extras)
 library(DT)
+library(rgdal)# readOGR
+library(tidyverse)
 
 #To-do:
 # Base map: Census tracts in Pittsburgh
@@ -33,12 +35,15 @@ stations <- stations %>%
            Latitude = as.numeric(Latitude),
            `# of Racks` = as.numeric(`# of Racks`))
 
+#loading in the shapefile with Pittsburgh neighborhoods
+pitt_census_tracts <- rgdal::readOGR("~/Documents/GitHub/final_toj/2010_Census_Tracts.geojson")
+
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
 
     # Application title
-    titlePanel("Micro-Transit Access in Pittsburgh"),
+    titlePanel("Bike Share Access in Pittsburgh"),
 
     # # Sidebar with a slider input for number of bins 
     # sidebarLayout(
@@ -72,8 +77,13 @@ server <- function(input, output) {
             #setting the view to just pittsburgh
             setView(-79.995888, 40.440624, 12)  %>% 
             addLayersControl(baseGroups = c("Google", "NatGeo")) %>% 
+            addPolygons(data = pitt_census_tracts,
+                        weight = 2,
+                        color = "green",
+                        stroke = TRUE,
+                        highlightOptions = highlightOptions(color = "black", weight = 5) ) %>% 
             #add markers on the map for the healthy ride bike station locations
-            addMarkers(~Longitude, ~Latitude, clusterOptions = markerClusterOptions())
+            addMarkers(~Longitude, ~Latitude)#, clusterOptions = markerClusterOptions())
             
         
         
