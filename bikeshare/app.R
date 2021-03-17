@@ -5,6 +5,10 @@ library(leaflet.extras)
 library(DT)
 library(rgdal)# readOGR
 library(tidyverse)
+library(tigris) # to merge spatial data with demographic information
+library(httr) # http rest requests
+library(jsonlite) # fromJSON
+library(utils) # URLencode functions
 
 #To-do:
 # Base map: Census tracts in Pittsburgh
@@ -77,6 +81,9 @@ pitt_demog_info <- pitt_demog_info %>%
     mutate_all(funs(str_replace(., ",", ""))) %>%
     mutate_at(names(pitt_demog_info)[-1], as.numeric)
 
+#merging census shape files and demographic information
+census_and_demog <- geo_join(pitt_census_tracts,
+                             pitt_demog_info, by_sp = "tractce10", by_df = "census.tract", how = "left")
 
 
 
@@ -89,17 +96,29 @@ ui <- fluidPage(
     # Sidebar with a slider input for number of bins
     sidebarLayout(
         sidebarPanel(
-            sliderInput("bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
+            selectInput("census_tract", 
+                        label = "Choose a Census Tract in Pittsburgh:",
+                        choices = pitt_census_tracts$tractce10),
+         
+            
+            #select input for the demographic information that you want to look at
+            selectInput("demogSelect",
+                        label = "Choose the Demographic Information to Map:",
+                        choices = names(pitt_demog_info)[-1]),
+            
+            
+            #creates download button for users
+            downloadButton(outputId = "downloadData",
+                           label = "Download "
+            )
+            
+           
         ),
 
         # Show a plot of the generated distribution
         mainPanel(
             # Map Output
-            leafletOutput("pitt_map"),
+            leafletOutput("pittmap"),
             dataTableOutput("demog_table")
         )
     )
@@ -109,7 +128,12 @@ ui <- fluidPage(
 server <- function(input, output) {
 
 
-    output$pitt_map <- renderLeaflet({
+    output$pittmap <- renderLeaflet({
+        
+        #creating color scheme for choroplets
+        #bins <- c(0, 1000, 2000, 3000, 4000, 5000, 6000, Inf)
+       #  pal <- colorNumeric("YlOrRd", domain = census_and_demog$RACE..Total.population)
+       # pal <- colorBin(, domain = census_and_demog$RACE..Total.population, bins = bins)
 
         pitt.map <- leaflet(data = stations) %>%
             #selecting a basemap
@@ -118,36 +142,75 @@ server <- function(input, output) {
             #setting the view to just pittsburgh
             setView(-79.995888, 40.440624, 12)  %>% 
             addLayersControl(baseGroups = c("Google", "NatGeo")) %>% 
-            addPolygons(data = pitt_census_tracts,
-                        weight = 2,
-                        color = "green",
-                        stroke = TRUE,
-                        highlightOptions = highlightOptions(color = "black", weight = 5) ) %>% 
-            #add markers on the map for the healthy ride bike station locations
-            addMarkers(~Longitude, ~Latitude)#, clusterOptions = markerClusterOptions())
-            
-        # observe({
-        #     boros <- boroInputs()
-        #     
-        #     leafletProxy("leaflet", data = boros) %>%
-        #         # In this case either lines 107 or 108 will work
-        #         # clearShapes() %>%
-        #         clearGroup(group = "boros") %>%
-        #         addPolygons(popup = ~paste0("<b>", boro_name, "</b>"), group = "boros", layerId = ~boro_code, fill = FALSE, color = "green") %>%
-        #         setView(lng = boros$x[1], lat = boros$y[1], zoom = 9)
-        # })
-
+            addPolygons(data = census_and_demog,
+                       weight = 2,
+                       opacity = 1,
+                        layerId = ~census_and_demog$tractce10,
+                        #fillColor = ~pal(RACE..Total.population),
+                        color = "white",
+                        fillOpacity = 0.7,
+                        
+                       # stroke = TRUE,
+                        highlightOptions = highlightOptions(color = "black", 
+                                                            weight = 5) )# %>%
+            # #add markers on the map for the healthy ride bike station locations
+           # addMarkers(~Longitude, ~Latitude)#, clusterOptions = markerClusterOptions())
+        
         pitt.map
+        
+
+      
+    })
+    
+    #pitt_demog_info 
+    #pitt_census_tracts
+    
+    #Subset for the census tract of interest
+    census_subset <- reactive({
+        pitt_demog_info %>% 
+           filter(census.tract == input$census_tract) %>% 
+           select(census.tract, input$demogSelect)
     })
     
     
+   #  #Based on Demographic Filter
+   # censusInputs <- reactive({
+   #     census.tract.data <- subset(pitt_census_tracts, tractce10 == input$census_tract)
+   # 
+   #      return(census.tract.data)
+   #  })
+   #  # observe({
+   #  # 
+    #     demogs <- demogInputs()
+    # 
+    #     #creating cols based on the selected demographic information
+    #     bins <- cut(census_subset()$demogSelect)
+    # #     palette<
+    #     leafletProxy("pittmap", data = demogs) %>%
+    #         #clearShapes() %>%
+    #         addPolygons(
+    #             fillColor = input$demogSelect
+    #         )
+    #         clearGroup(group = "boros") %>%
+           # addPolygons(popup = ~paste0("<b>", boro_name, "</b>"), group = "boros", layerId = ~boro_code, fill = FALSE, color = "green")
+    #         setView(lng = boros$x[1], lat = boros$y[1], zoom = 9)
+ #  })
+    
+    # observe({
+    #     #if a census tract polygon is clicked, change the zoom
+    #     click_tract <- input$pittmap_shape_click
+    # 
+    #     leafletProxy("pittmap") %>%
+    #      setView(lng = click$lng, lat = click$lat, zoom = 9)
+    # })
+    # 
     
     
    #leafletProxy("pitt", data = stations) 
    
    output$demog_table <- DT::renderDataTable({
        
-       DT::datatable(data = pitt_demog_info,
+       DT::datatable(data = census_subset(),
                      rownames = FALSE)
    })
    
