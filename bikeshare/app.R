@@ -9,12 +9,16 @@ library(tigris) # to merge spatial data with demographic information
 library(httr) # http rest requests
 library(jsonlite) # fromJSON
 library(utils) # URLencode functions
+library(sp)
+
 
 #To-do:
 # Base map: Census tracts in Pittsburgh
 #Layers: 1. HealthyRide Stations
 #        2. Demographic information by Census Tract
-
+#to-do: User inputs the demographic information they want to display, and causes the shading of the polygons
+# on the map to change
+#selects a census tract and the dataTable changes, and zooms to that census tract on the map
 
 
 #Loading in the Pittsburgh HealthyRide Stations data using WPRDC API
@@ -101,11 +105,18 @@ ui <- fluidPage(
                         choices = pitt_census_tracts$tractce10),
          
             
+            #adding an action button for the census tract select option
+            actionButton("addtract",
+                         label = "Select Census Tract"),
+            
             #select input for the demographic information that you want to look at
             selectInput("demogSelect",
                         label = "Choose the Demographic Information to Map:",
                         choices = names(pitt_demog_info)[-1]),
             
+            #adding an action button for the demographics select option
+            actionButton("add_demog",
+                         label = "Select Demographic Information"),
             
             #creates download button for users
             downloadButton(outputId = "downloadData",
@@ -135,6 +146,12 @@ server <- function(input, output) {
        #  pal <- colorNumeric("YlOrRd", domain = census_and_demog$RACE..Total.population)
        # pal <- colorBin(, domain = census_and_demog$RACE..Total.population, bins = bins)
 
+      
+      #adding basic labels to the leaflet map
+      tract_labels <- sprintf("<strong> Census Tract: </strong><br/> %s",
+                        census_and_demog$census.tract) %>% 
+                      lapply(htmltools::HTML)
+      
         pitt.map <- leaflet(data = stations) %>%
             #selecting a basemap
             addTiles(urlTemplate = "http://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", attribution = "Google", group = "Google") %>%
@@ -147,14 +164,14 @@ server <- function(input, output) {
                        opacity = 1,
                         layerId = ~census_and_demog$tractce10,
                         #fillColor = ~pal(RACE..Total.population),
-                        color = "white",
+                        color = "blue",
                         fillOpacity = 0.7,
-                        
-                       # stroke = TRUE,
+                        stroke = TRUE,
                         highlightOptions = highlightOptions(color = "black", 
-                                                            weight = 5) )# %>%
+                                                            weight = 5),
+                        label = tract_labels)%>%
             # #add markers on the map for the healthy ride bike station locations
-           # addMarkers(~Longitude, ~Latitude)#, clusterOptions = markerClusterOptions())
+            addMarkers(~Longitude, ~Latitude, clusterOptions = markerClusterOptions())
         
         pitt.map
         
@@ -179,8 +196,24 @@ server <- function(input, output) {
    # 
    #      return(census.tract.data)
    #  })
-   #  # observe({
-   #  # 
+    # observe({
+    #   
+    #   pal <- colorNumeric("YlOrRd", domain = census_and_demog$input$demogSelect)
+    #   
+    #   leafletProxy(pittmap, session) %>% 
+    #     addPolygons(data = census_and_demog,
+    #                 weight = 2,
+    #                 opacity = 1,
+    #                 layerId = ~census_and_demog$tractce10,
+    #                 fillColor = ~pal(input$demogSelect),
+    #                 color = "white",
+    #                 fillOpacity = 0.7,
+    #                 highlightOptions = highlightOptions(color = "black", 
+    #                                                     weight = 5)) 
+    #   
+    #   
+    # })
+
     #     demogs <- demogInputs()
     # 
     #     #creating cols based on the selected demographic information
@@ -196,15 +229,36 @@ server <- function(input, output) {
     #         setView(lng = boros$x[1], lat = boros$y[1], zoom = 9)
  #  })
     
-    # observe({
-    #     #if a census tract polygon is clicked, change the zoom
-    #     click_tract <- input$pittmap_shape_click
-    # 
-    #     leafletProxy("pittmap") %>%
-    #      setView(lng = click$lng, lat = click$lat, zoom = 9)
-    # })
-    # 
+    observeEvent(input$pittmap_shape_click, {
+        #if a census tract polygon is clicked, change the zoom
+        click_tract <- input$pittmap_shape_click
+
+        leafletProxy("pittmap") %>%
+         setView(lng = click_tract$lng, lat = click_tract$lat, zoom = 15)
+    })
+
+    #does something when the census tract is selected
     
+    # eventReactive(input$addtract,{
+    #   leafletProxy("pittmap") %>% 
+    #     
+    #   
+    #   
+    # })
+    
+    # observeEvent(input$)
+    
+    eventReactive(input$add_demog, {
+      
+      #setting the color palette
+      pal <- colorNumeric("YlOrRd", domain = input$demogSelect)
+      
+      leafletProxy("pittmap") %>% 
+      addPolygons(data = census_and_demog,
+                  weight = 2,
+                  opacity = 1,
+                  fillColor = ~pal(input$demogSelect))
+    } )
     
    #leafletProxy("pitt", data = stations) 
    
