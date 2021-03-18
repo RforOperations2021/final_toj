@@ -90,6 +90,10 @@ census_and_demog <- geo_join(pitt_census_tracts,
                              pitt_demog_info, by_sp = "tractce10", by_df = "census.tract", how = "left")
 
 
+# #rename columns 
+# census_and_demog %>% 
+#   rename()
+
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -143,13 +147,13 @@ server <- function(input, output) {
         
         #creating color scheme for choroplets
         #bins <- c(0, 1000, 2000, 3000, 4000, 5000, 6000, Inf)
-       #  pal <- colorNumeric("YlOrRd", domain = census_and_demog$RACE..Total.population)
+        pal <- colorNumeric("YlOrRd", domain = census_and_demog$RACE..Total.population)
        # pal <- colorBin(, domain = census_and_demog$RACE..Total.population, bins = bins)
 
       
       #adding basic labels to the leaflet map
-      tract_labels <- sprintf("<strong> Census Tract: </strong><br/> %s",
-                        census_and_demog$census.tract) %>% 
+      tract_labels <- sprintf("<strong> Census Tract: </strong><br/> %s <br/> Number of People: %g ",
+                        census_and_demog$census.tract, census_and_demog$RACE..Total.population) %>% 
                       lapply(htmltools::HTML)
       
         pitt.map <- leaflet(data = stations) %>%
@@ -163,7 +167,7 @@ server <- function(input, output) {
                        weight = 2,
                        opacity = 1,
                         layerId = ~census_and_demog$tractce10,
-                        #fillColor = ~pal(RACE..Total.population),
+                        fillColor = ~pal(RACE..Total.population),
                         color = "blue",
                         fillOpacity = 0.7,
                         stroke = TRUE,
@@ -171,7 +175,8 @@ server <- function(input, output) {
                                                             weight = 5),
                         label = tract_labels)%>%
             # #add markers on the map for the healthy ride bike station locations
-            addMarkers(~Longitude, ~Latitude, clusterOptions = markerClusterOptions())
+            addMarkers(~Longitude, ~Latitude, clusterOptions = markerClusterOptions()) %>% 
+            addLegend(pal = pal, values = ~census_and_demog$RACE..Total.population, title = NULL, position = "bottomright")
         
         pitt.map
         
