@@ -142,6 +142,12 @@ ui <- fluidPage(
 # Define server logic required to draw a histogram
 server <- function(input, output) {
 
+  
+  #adding basic labels to the leaflet map
+ 
+  tract_labels <- sprintf("<strong> Census Tract: </strong><br/> %s <br/> Number of People: %g ",
+                          census_and_demog$census.tract, census_and_demog$RACE..Total.population) %>% 
+    lapply(htmltools::HTML)
 
     output$pittmap <- renderLeaflet({
         
@@ -150,11 +156,8 @@ server <- function(input, output) {
         pal <- colorNumeric("YlOrRd", domain = census_and_demog$RACE..Total.population)
        # pal <- colorBin(, domain = census_and_demog$RACE..Total.population, bins = bins)
 
-      
-      #adding basic labels to the leaflet map
-      tract_labels <- sprintf("<strong> Census Tract: </strong><br/> %s <br/> Number of People: %g ",
-                        census_and_demog$census.tract, census_and_demog$RACE..Total.population) %>% 
-                      lapply(htmltools::HTML)
+        
+     
       
         pitt.map <- leaflet(data = stations) %>%
             #selecting a basemap
@@ -195,29 +198,35 @@ server <- function(input, output) {
     })
     
     
-   #  #Based on Demographic Filter
-   # censusInputs <- reactive({
-   #     census.tract.data <- subset(pitt_census_tracts, tractce10 == input$census_tract)
+   #change the criteria for the color palette based on demographic info input
+    demogpal <- reactive({
+   
+      select_demog <- input$demogSelect
+      colorNumeric("YlOrRd", domain =  census_and_demog$select_demog)
+
+   
+     })
    # 
-   #      return(census.tract.data)
-   #  })
-    # observe({
-    #   
-    #   pal <- colorNumeric("YlOrRd", domain = census_and_demog$input$demogSelect)
-    #   
-    #   leafletProxy(pittmap, session) %>% 
-    #     addPolygons(data = census_and_demog,
-    #                 weight = 2,
-    #                 opacity = 1,
-    #                 layerId = ~census_and_demog$tractce10,
-    #                 fillColor = ~pal(input$demogSelect),
-    #                 color = "white",
-    #                 fillOpacity = 0.7,
-    #                 highlightOptions = highlightOptions(color = "black", 
-    #                                                     weight = 5)) 
-    #   
-    #   
-    # })
+   #updating the map each time a new demographic select option is picked
+    observe({
+
+      pal <- demogpal()
+
+      leafletProxy("pittmap") %>%
+       clearShapes() %>%
+        addPolygons(data = census_and_demog,
+                    weight = 2,
+                    opacity = 1,
+                    fillColor = ~pal(census_and_demog$select_demog))
+                    # color = "white",
+                    # stroke = TRUE,
+                    # label = tract_labels,
+                    # fillOpacity = 0.7,
+                    # highlightOptions = highlightOptions(color = "black",
+                    #                                     weight = 5))
+
+
+    })
 
     #     demogs <- demogInputs()
     # 
@@ -253,18 +262,18 @@ server <- function(input, output) {
     
     # observeEvent(input$)
     
-    eventReactive(input$add_demog, {
-      
-      #setting the color palette
-      pal <- colorNumeric("YlOrRd", domain = input$demogSelect)
-      
-      leafletProxy("pittmap") %>% 
-      addPolygons(data = census_and_demog,
-                  weight = 2,
-                  opacity = 1,
-                  fillColor = ~pal(input$demogSelect))
-    } )
-    
+    # eventReactive(input$add_demog, {
+    #   
+    #   #setting the color palette
+    #   pal <- colorNumeric("YlOrRd", domain = input$demogSelect)
+    #   
+    #   leafletProxy("pittmap") %>% 
+    #   addPolygons(data = census_and_demog,
+    #               weight = 2,
+    #               opacity = 1,
+    #               fillColor = ~pal(input$demogSelect))
+    # } )
+    # 
    #leafletProxy("pitt", data = stations) 
    
    output$demog_table <- DT::renderDataTable({
