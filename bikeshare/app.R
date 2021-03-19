@@ -13,7 +13,6 @@ library(utils) # URLencode functions
 library(sp)
 library(sf)
 library(shinydashboard)
-#library(GISTools) # used to get overlapping polygons
 
 
 #To-do:
@@ -219,7 +218,7 @@ body <- dashboardBody(tabItems(
 
           selectInput("per_select_2",
                       label = "Choose Demographic Information for Second Line",
-                      choices = c("Percentage.of.White.Residents", "Percentage.of.Black.Residents",
+                      choices = c("Percentage.of.Black.Residents", "Percentage.of.White.Residents", 
                                   "Percentage.of.American.Indian.Residents",
                                   "Percentage.of.Asian.Residents",
                                   "Percentage.of.Hispanic.Latino.Residents"
@@ -231,7 +230,7 @@ body <- dashboardBody(tabItems(
           br(), br(),
           
           selectInput("census_tract",
-                      label = "Select Census Tracts to Plot",
+                      label = "Select Census Tracts to Plot:",
                       choices = census_and_demog@data$census.tract,
                       multiple = TRUE,
                       selectize = TRUE,
@@ -296,10 +295,7 @@ server <- function(input, output) {
            Percentage.of.American.Indian.Residents,
            Percentage.of.Asian.Residents,
            Percentage.of.Hispanic.Latino.Residents,
-           num.stations.per.tract)# %>% 
-    # rename("Census Tract" = census.tract,
-    #        "Number of HealthyRide Stations" = num.stations.per.tract)
-    # 
+           num.stations.per.tract)
 
   
         #adding basic labels to the leaflet map
@@ -396,45 +392,31 @@ server <- function(input, output) {
     
     full_data_subset <-  reactive({
       full_data %>% 
-        select(input$per_select_1, num.stations.per.tract) #input$per_select_2, 
+        select(input$per_select_1, input$per_select_2, num.stations.per.tract)
     })
     
     
-   
-    # output$numbikes_by_demo <- renderPlotly ({
-    # 
-    #  # full_data_subset()$first_select <- full_data_subset()[input$per_select_1]
-    # 
-    #   ggplotly(
-    #     ggplot(full_data_subset(),
-    #            aes(x = input$per_select_1, y = num.stations.per.tract)) +
-    #       geom_line()
-    #     
-    #   )
-    #   
-    # })
-    
+    #plot of the change in bike share station availability as percent of demographic group increases
+    output$numbikes_by_demo <- renderPlotly ({
 
+      yvar <- "num.stations.per.tract"
+      
     
-    # full_data <- census_and_demog@data %>% 
-    #   select(census.tract, Total.Population, Number.of.White.Residents, 
-    #          Number.of.Black.Residents, Number.of.American.Indian.Residents,
-    #          Number.of.Asian.Residents, Number.of.Hispanic.Latino.Residents,
-    #          Percentage.of.White.Residents, Percentage.of.Black.Residents,
-    #          Percentage.of.American.Indian.Residents,
-    #          Percentage.of.Asian.Residents,
-    #          Percentage.of.Hispanic.Latino.Residents,
-    #          num.stations.per.tract) %>% 
-    #   rename("Census Tract" = census.tract,
-    #          "Number of HealthyRide Stations" = num.stations.per.tract)
-    
-    #does something when the census tract is selected
-    # eventReactive(input$addtract,{
-    #   leafletProxy("pittmap") %>% 
-    #     
-    #   
-    #   
-    # })
+      ggplotly(
+        ggplot(full_data_subset(),
+               aes_string(x = input$per_select_1, y = yvar)) +
+          geom_line(color = "blue") +
+          geom_line(aes_string(x = input$per_select_2), color = "red") +
+          labs(x = "Percentage of Residents",
+               y = "Number of HealthyRide Stations") +
+          ggtitle("Number of HealthyRide Stations Vs. Percent Demographic Group"),
+        
+       
+
+      )
+
+    })
+   
     
     census_subset <- reactive({
       full_data %>% 
@@ -453,7 +435,9 @@ server <- function(input, output) {
           geom_bar(stat = "identity") +
           labs(x = "Census Tracts",
             y = "Number of HealthyRide Stations") +
-          ggtitle("Number of HealthyRide Stations per Census Tract")
+          ggtitle("Number of HealthyRide Stations per Census Tract"),
+        
+        tooltip = c("x", "y")
 
       )
 
