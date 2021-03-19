@@ -19,12 +19,22 @@ library(sf)
 #Layers: 1. HealthyRide Stations
 #        2. Demographic information by Census Tract
 #to-do: User inputs the demographic information they want to display, and causes the shading of the polygons
-# on the map to change --- done!
+# on the map to change --- done! :)
 # count the number of times that there is an overlap between the polygons and the markers on top of that  -- done!
-#rename the columns & select options
-#create percentages
+#rename the columns & select options  --- done! :)
+#create percentages --- done! :)
+#change the dataTable output
+#edit the download button 
+#update the legend  -- done! :)
+# if there is time, change to shinydashboard 
+
+#select mutiple select inputs
+
+
+#add tabset panel 
 #create graph with percentages of demographics on one axis and the number of bike racks available
 #add the popups and labels 
+#change zoom based on census tract input
 
 #selects a census tract and the dataTable changes, and zooms to that census tract on the map
 
@@ -42,7 +52,9 @@ stations <- fromJSON(content(g, "text"))$result$records
 
 #subsetting data to desired columns
 stations <- stations %>% 
-    select("Station #","Station Name", "Latitude", "Longitude", "# of Racks")
+    select("Station #","Station Name", "Latitude", "Longitude", "# of Racks") %>% 
+    mutate("# of Racks" = as.factor(`# of Racks`),
+           "# of Racks" = as.numeric(`# of Racks`))
 
 #changing the datatypes for some of the columns in the stations dataset
 options(digits=6)
@@ -94,7 +106,27 @@ pitt_demog_info <- pitt_demog_info %>%
     mutate_all(funs(str_replace(., ",", ""))) %>%
     mutate_at(names(pitt_demog_info)[-1], as.numeric)
 
-#column selection 
+#selects desired columns and renames columns
+pitt_demog_info <-
+  pitt_demog_info %>%
+  select(census.tract, RACE..Total.population, RACE..Total.population..One.race..White, RACE..Total.population..One.race..Black.or.African.American, RACE..Total.population..One.race..American.Indian.and.Alaska.Native, RACE..Total.population..One.race..Asian, HISPANIC.OR.LATINO.AND.RACE..Total.population..Hispanic.or.Latino..of.any.race.) %>%
+  rename("Total Population" = RACE..Total.population,
+         "Number of White Residents" = RACE..Total.population..One.race..White,
+         "Number of Black Residents" = RACE..Total.population..One.race..Black.or.African.American,
+         "Number of American Indian Residents" = RACE..Total.population..One.race..American.Indian.and.Alaska.Native,
+         "Number of Asian Residents" = RACE..Total.population..One.race..Asian,
+         "Number of Hispanic/Latino Residents" = HISPANIC.OR.LATINO.AND.RACE..Total.population..Hispanic.or.Latino..of.any.race.)
+
+
+#creates new columns
+pitt_demog_info <- pitt_demog_info %>%
+  mutate("Percentage of White Residents" = ifelse(`Number of White Residents` != 0,round((`Number of White Residents`/`Total Population`)*100, digits = 0), 0),
+         "Percentage of Black Residents" = ifelse(`Number of Black Residents` != 0,round((`Number of Black Residents`/`Total Population`)*100, digits = 0), 0),
+         "Percentage of American Indian Residents" = ifelse(`Number of American Indian Residents` != 0,round((`Number of American Indian Residents`/`Total Population`)*100, digits = 0), 0),
+         "Percentage of Asian Residents" = ifelse(`Number of Asian Residents` != 0,round((`Number of Asian Residents`/`Total Population`)*100, digits = 0), 0),
+         "Percentage of Hispanic/Latino Residents" = ifelse(`Number of Hispanic/Latino Residents` != 0,round((`Number of Hispanic/Latino Residents`/`Total Population`)*100, digits = 0), 0)
+  )
+
 
 
 #merging census shape files and demographic information
@@ -102,12 +134,13 @@ census_and_demog <- geo_join(pitt_census_tracts,
                              pitt_demog_info, by_sp = "tractce10", by_df = "census.tract", how = "left")
 
 
+
 #counting the number of bikeshare stations in each census tract
 
 #convert the stations data into a spatial dataframe
 stations_spatial <-
   stations %>%
-  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) %>% 
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) %>%
   as_Spatial()
 
 
@@ -143,11 +176,17 @@ ui <- fluidPage(
             #select input for the demographic information that you want to look at
             selectInput("demogSelect",
                         label = "Choose the Demographic Information to Map:",
-                        choices = names(pitt_demog_info)[-1]),
+                        choices = c("Total.Population", "Number.of.White.Residents", 
+                                    "Number.of.Black.Residents", "Number.of.American.Indian.Residents",
+                                    "Number.of.Asian.Residents", "Number.of.Hispanic.Latino.Residents",
+                                    "Percentage.of.White.Residents", "Percentage.of.Black.Residents",
+                                    "Percentage.of.American.Indian.Residents",
+                                    "Percentage.of.Asian.Residents",
+                                    "Percentage.of.Hispanic.Latino.Residents")),
             
             #adding an action button for the demographics select option
             actionButton("add_demog",
-                         label = "Select Demographic Information"),
+                         label = "Click to Change Demographic Information"),
             
             #creating some visual space 
             br(), br(),
@@ -173,15 +212,15 @@ ui <- fluidPage(
 server <- function(input, output) {
 
   
-  #adding basic labels to the leaflet map
+         #adding basic labels to the leaflet map
  
-  tract_labels <- sprintf("<strong> Census Tract: </strong><br/> %s <br/> Number of People: %g ",
-                          census_and_demog$census.tract, census_and_demog$RACE..Total.population) %>% 
-    lapply(htmltools::HTML)
+        tract_labels <- sprintf("<strong> Census Tract: </strong><br/> %s <br/> Number of People: %g ",
+                          census_and_demog$census.tract, census_and_demog$Total.Population) %>% 
+                         lapply(htmltools::HTML)
 
-    output$pittmap <- renderLeaflet({
+         output$pittmap <- renderLeaflet({
         
-       pal <- colorNumeric("YlOrRd", domain = census_and_demog$RACE..Total.population)
+               pal <- colorNumeric("YlOrRd", domain = census_and_demog$Total.Population)
        
 
         
@@ -197,15 +236,18 @@ server <- function(input, output) {
                        weight = 2,
                        opacity = 1,
                         layerId = ~census_and_demog$tractce10,
-                        color = ~pal(RACE..Total.population),
+                        color = ~pal(Total.Population),
                         fillOpacity = 0.7,
                         stroke = TRUE,
                         highlightOptions = highlightOptions(color = "black", 
                                                             weight = 5),
                         label = tract_labels)%>%
             # #add markers on the map for the healthy ride bike station locations
-            addMarkers(~Longitude, ~Latitude, clusterOptions = markerClusterOptions()) %>% 
-            addLegend(pal = pal, values = ~census_and_demog$RACE..Total.population, title = NULL, position = "bottomright")
+            addMarkers(~Longitude, ~Latitude, 
+                       label = ~`Station Name`,
+                       clusterOptions = markerClusterOptions()) %>% 
+            addLegend(pal = pal, values = ~census_and_demog$Total.Population, 
+                      title = "Total.Population",  position = "bottomright")
         
         pitt.map
         
@@ -220,11 +262,10 @@ server <- function(input, output) {
 
     #Subset for the census tract of interest
     census_subset <- reactive({
-        pitt_demog_info %>% 
+        census_and_demog@data %>% 
            filter(census.tract == input$census_tract) %>% 
            select(census.tract, input$demogSelect)
     })
-    
     
     
     
@@ -242,8 +283,6 @@ server <- function(input, output) {
                     weight = 2,
                     opacity = 1,
                     color = ~pal(select_demog),
-                    # stroke = TRUE,
-                    # label = tract_labels,
                     fillOpacity = 0.7,
                     highlightOptions = highlightOptions(color = "black",
                                                         weight = 5))
@@ -251,20 +290,24 @@ server <- function(input, output) {
 
     })
 
-    #     demogs <- demogInputs()
-    # 
-    #     #creating cols based on the selected demographic information
-    #     bins <- cut(census_subset()$demogSelect)
-    # #     palette<
-    #     leafletProxy("pittmap", data = demogs) %>%
-    #         #clearShapes() %>%
-    #         addPolygons(
-    #             fillColor = input$demogSelect
-    #         )
-    #         clearGroup(group = "boros") %>%
-           # addPolygons(popup = ~paste0("<b>", boro_name, "</b>"), group = "boros", layerId = ~boro_code, fill = FALSE, color = "green")
-    #         setView(lng = boros$x[1], lat = boros$y[1], zoom = 9)
- #  })
+    
+    #update the legend as needed
+    observeEvent(input$add_demog, {
+
+      census_and_demog@data$select_demog <- census_and_demog@data[[input$demogSelect]]
+      pal <- colorNumeric("YlOrRd", domain = census_and_demog$select_demog)
+
+      leafletProxy("pittmap", data = census_and_demog) %>%
+        clearControls() %>%
+        addLegend(pal = pal, values = ~select_demog, 
+                  title = input$demogSelect,  position = "bottomright")
+      
+
+        
+
+    })
+    
+    
     
     observeEvent(input$pittmap_shape_click, {
         #if a census tract polygon is clicked, change the zoom
@@ -283,21 +326,7 @@ server <- function(input, output) {
     #   
     # })
     
-    # observeEvent(input$)
-    
-    # eventReactive(input$add_demog, {
-    #   
-    #   #setting the color palette
-    #   pal <- colorNumeric("YlOrRd", domain = input$demogSelect)
-    #   
-    #   leafletProxy("pittmap") %>% 
-    #   addPolygons(data = census_and_demog,
-    #               weight = 2,
-    #               opacity = 1,
-    #               fillColor = ~pal(input$demogSelect))
-    # } )
-    # 
-   #leafletProxy("pitt", data = stations) 
+
    
    output$demog_table <- DT::renderDataTable({
        
