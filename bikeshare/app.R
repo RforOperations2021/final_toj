@@ -10,7 +10,7 @@ library(httr) # http rest requests
 library(jsonlite) # fromJSON
 library(utils) # URLencode functions
 library(sp)
-#library(sf) #dealing with shapefiles
+library(sf)
 #library(GISTools) # used to get overlapping polygons
 
 
@@ -102,9 +102,21 @@ census_and_demog <- geo_join(pitt_census_tracts,
                              pitt_demog_info, by_sp = "tractce10", by_df = "census.tract", how = "left")
 
 
-# #rename columns 
-# census_and_demog %>% 
-#   rename()
+#counting the number of bikeshare stations in each census tract
+
+#convert the stations data into a spatial dataframe
+stations_spatial <-
+  stations %>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) %>% 
+  as_Spatial()
+
+
+#count the number of bikeshare stations within the census tract polygons
+num.stations.per.tract <- GISTools::poly.counts(stations_spatial, census_and_demog)
+
+#adding data about overlaps to the census and demog dataset
+census_and_demog@data$num.stations.per.tract <- num.stations.per.tract
+
 
 
 
@@ -136,6 +148,9 @@ ui <- fluidPage(
             #adding an action button for the demographics select option
             actionButton("add_demog",
                          label = "Select Demographic Information"),
+            
+            #creating some visual space 
+            br(), br(),
             
             #creates download button for users
             downloadButton(outputId = "downloadData",
@@ -214,7 +229,7 @@ server <- function(input, output) {
     
     
    #updating the map each time a new demographic select option is picked
-    observe({
+    observeEvent(input$add_demog, {
 
       #change the criteria for the color palette based on demographic info input
       census_and_demog@data$select_demog <- census_and_demog@data[[input$demogSelect]]
@@ -226,13 +241,12 @@ server <- function(input, output) {
          addPolygons(data = census_and_demog,
                     weight = 2,
                     opacity = 1,
-                    color = ~pal(select_demog))
-                    # color = "white",
+                    color = ~pal(select_demog),
                     # stroke = TRUE,
                     # label = tract_labels,
-                    # fillOpacity = 0.7,
-                    # highlightOptions = highlightOptions(color = "black",
-                    #                                     weight = 5))
+                    fillOpacity = 0.7,
+                    highlightOptions = highlightOptions(color = "black",
+                                                        weight = 5))
 
 
     })
