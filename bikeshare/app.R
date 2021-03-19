@@ -15,18 +15,6 @@ library(sf)
 library(shinydashboard)
 
 
-#To-do:
-# Base map: Census tracts in Pittsburgh
-#Layers: 1. HealthyRide Stations
-#        2. Demographic information by Census Tract
-#to-do:
-
-#use mutiple select inputs
-#create graph with percentages of demographics on one axis and the number of bike racks available
-#change zoom based on census tract input
-#change shinydashboard theme
-
-
 # Accessing Data and Pre-Processing ---------------------------------------------------------------------------------------------------------
 
 #Loading in the Pittsburgh HealthyRide Stations data using WPRDC API
@@ -189,7 +177,7 @@ body <- dashboardBody(tabItems(
           
           
           
-          # Shows the leaflet map
+           #shows the leaflet map
            leafletOutput("pittmap"),
           
           
@@ -283,7 +271,7 @@ body <- dashboardBody(tabItems(
  
 ui <- dashboardPage(skin = "purple", header, sidebar, body)
 
-# Define server logic required to draw a histogram
+# Define server logic ---------------------------------------
 server <- function(input, output) {
   
   #subsets the census and demographics data to just the desired information
@@ -307,17 +295,18 @@ server <- function(input, output) {
                          lapply(htmltools::HTML)
         )
         
-        #customizing the label for the station markers
+        #customizes the label for the station markers
         station_marker_label <- sprintf("<strong> Station Name: </strong><br/> %s",
                                         stations$`Station Name`) %>% lapply(htmltools::HTML)
 
          output$pittmap <- renderLeaflet({
         
-               pal <- colorNumeric("YlOrRd", domain = census_and_demog$Total.Population)
+          #creates dynamic color palette changes for map
+           pal <- colorNumeric("YlOrRd", domain = census_and_demog$Total.Population)
        
 
         
-      
+        #creates base map of Pittsburgh and locations of HealthyRide Stations
         pitt.map <- leaflet(data = stations) %>%
             #selecting a basemap
             addTiles(urlTemplate = "http://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", attribution = "Google", group = "Google") %>%
@@ -349,7 +338,7 @@ server <- function(input, output) {
     
     
     
-   #updating the map each time a new demographic select option is picked
+   #updates the map each time a new demographic select option is picked
     observeEvent(input$add_demog, {
 
       #change the criteria for the color palette based on demographic info input
@@ -373,7 +362,7 @@ server <- function(input, output) {
     })
 
     
-    #update the legend as needed
+    #update the legend as needed based on new demographic information input
     observeEvent(input$add_demog, {
 
       census_and_demog@data$select_demog <- census_and_demog@data[[input$demogSelect]]
@@ -389,14 +378,14 @@ server <- function(input, output) {
 
     })
     
-    
+    #creates a reactive dataset for just the inputs selected for the line graph
     full_data_subset <-  reactive({
       full_data %>% 
         select(input$per_select_1, input$per_select_2, num.stations.per.tract)
     })
     
     
-    #plot of the change in bike share station availability as percent of demographic group increases
+    #plot of the change in  number bike share stations as the percent of a given demographic group increases
     output$numbikes_by_demo <- renderPlotly ({
 
       yvar <- "num.stations.per.tract"
@@ -418,12 +407,15 @@ server <- function(input, output) {
     })
    
     
+    #creates a dataset subset with just the census tracts selected by the user
     census_subset <- reactive({
       full_data %>% 
         filter(census.tract %in% input$census_tract) %>% 
         select(census.tract, num.stations.per.tract)
     })
     
+    
+    #creates a bar graph 
     output$num_per_tract <- renderPlotly ({
 
 
@@ -444,6 +436,7 @@ server <- function(input, output) {
     })
     
     
+    #change the zoom level when the user clicks on a polygon
     observeEvent(input$pittmap_shape_click, {
         #if a census tract polygon is clicked, change the zoom
         click_tract <- input$pittmap_shape_click
@@ -453,7 +446,7 @@ server <- function(input, output) {
     })
 
    
-    #Subset for the demographic information of interest
+    #subsets for the demographic information of interest for the map overivew page
     demog_subset <- eventReactive(input$add_demog,{
       census_and_demog@data %>% 
         select(census.tract, input$demogSelect, num.stations.per.tract) %>% 
@@ -463,6 +456,7 @@ server <- function(input, output) {
 
   
     
+  #creates the datatable for the map overview page
    output$demog_table <- DT::renderDataTable(server = FALSE,{
        
        DT::datatable(data = demog_subset(),
@@ -477,7 +471,7 @@ server <- function(input, output) {
    
    
    
-   #adding in the data to be downloaded in csv format
+   #adds in the data to be downloaded in csv format
    output$downloadData <- downloadHandler(
      filename = "HealthyRide_Demographic_Distribution.csv",
      content = function(file) {
@@ -495,7 +489,7 @@ server <- function(input, output) {
    })
    
    
-   #creates a datatable subset to just the desired information
+   #creates a datatable subset to just the desired information for the full dataset page
    output$full_data_table <- DT::renderDataTable({
      
      DT::datatable(data = column_select(),
