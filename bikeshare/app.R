@@ -20,15 +20,12 @@ library(shinydashboard)
 #Layers: 1. HealthyRide Stations
 #        2. Demographic information by Census Tract
 #to-do:
-# count the number of times that there is an overlap between the polygons and the markers on top of that  -- done! (add to data table)
 #change the dataTable output
 #edit the download button 
 #use mutiple select inputs
 #add tabset panel 
 #create graph with percentages of demographics on one axis and the number of bike racks available
-#add the popups and labels 
 #change zoom based on census tract input
-#add dynamic polygon labels when the demographic input is changed
 #change shinydashboard theme
 
 
@@ -162,7 +159,8 @@ sidebar <- dashboardSidebar(
     
     #Menu Items ----------------------------------------
     menuItem("Map Overview", icon = icon("map-marked"), tabName = "overview"),
-    menuItem("Bike Share Distribution", icon = icon("bicycle"), tabName = "bikes")
+    menuItem("Bike Share Distribution", icon = icon("bicycle"), tabName = "bikes"),
+    menuItem("Full Demographics Dataset", icon = icon("table"), tabName = "fullData")
   )
 )
 
@@ -191,17 +189,21 @@ body <- dashboardBody(tabItems(
           #creating some visual space 
           br(), br(),
           
-          #creates download button for users
-          downloadButton(outputId = "downloadData",
-                         label = "Download"),
           
           
           # Shows the leaflet map
+           leafletOutput("pittmap"),
           
-            # Map Output
-            leafletOutput("pittmap"),
-            dataTableOutput("demog_table")
+          
+          #creates some visual space
+          br(), br(),
+          
+          
+          #creates table display of map information
+          dataTableOutput("demog_table")
         
+          
+          
           
           
           ),
@@ -216,7 +218,20 @@ body <- dashboardBody(tabItems(
           actionButton("addtract",
                        label = "Select Census Tract")
           
-          )
+          ),
+  
+  
+  #Full Dataset Page -----------------------------------------
+  tabItem("fullData",
+          
+          #creates download button for users
+          downloadButton(outputId = "downloadData",
+                         label = "Click to Download Full Dataset"),
+          
+          
+          dataTableOutput("full_data_table")
+    
+  )
 
 )
   
@@ -279,16 +294,6 @@ server <- function(input, output) {
     })
     
     
-
-    #pitt_demog_info
-    #pitt_census_tracts
-
-    #Subset for the census tract of interest
-    census_subset <- reactive({
-        census_and_demog@data %>% 
-           filter(census.tract == input$census_tract) %>% 
-           select(census.tract, input$demogSelect)
-    })
     
     
     
@@ -352,15 +357,55 @@ server <- function(input, output) {
     })
 
    
-    
+    #Subset for the demographic information of interest
+    demog_subset <- eventReactive(input$add_demog,{
+      census_and_demog@data %>% 
+        select(census.tract, input$demogSelect, num.stations.per.tract) %>% 
+        rename("Census Tract" = census.tract,
+               "Number of HealthyRide Stations" = num.stations.per.tract)
+    })
 
-   
-   output$demog_table <- DT::renderDataTable({
+  
+    
+   output$demog_table <- DT::renderDataTable(server = FALSE,{
        
-       DT::datatable(data = census_subset(),
-                     rownames = FALSE)
+       DT::datatable(data = demog_subset(),
+                     extensions = 'Buttons',
+                     rownames = FALSE,
+                     options = list(
+                       dom = 'Bfrtip',
+                       buttons = c('csv', 'excel', 'pdf', 'print')
+                     ))
    })
    
+   
+   
+   full_data <- census_and_demog@data %>% 
+     select(census.tract, Total.Population, Number.of.White.Residents, 
+            Number.of.Black.Residents, Number.of.American.Indian.Residents,
+            Number.of.Asian.Residents, Number.of.Hispanic.Latino.Residents,
+            Percentage.of.White.Residents, Percentage.of.Black.Residents,
+            Percentage.of.American.Indian.Residents,
+            Percentage.of.Asian.Residents,
+            Percentage.of.Hispanic.Latino.Residents,
+            num.stations.per.tract) %>% 
+     rename("Census Tract" = census.tract,
+            "Number of HealthyRide Stations" = num.stations.per.tract)
+   
+   #adding in the data to be downloaded in csv format
+   output$downloadData <- downloadHandler(
+     filename = "HealthyRide_Demographic_Distribution.csv",
+     content = function(file) {
+       write.csv(full_data, file, row.names = FALSE)
+     }
+   )
+   
+   
+   output$full_data_table <- DT::renderDataTable({
+     
+     DT::datatable(data = full_data,
+                   rownames = FALSE)
+   })
     
 }
 
