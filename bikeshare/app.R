@@ -10,6 +10,8 @@ library(httr) # http rest requests
 library(jsonlite) # fromJSON
 library(utils) # URLencode functions
 library(sp)
+#library(sf) #dealing with shapefiles
+#library(GISTools) # used to get overlapping polygons
 
 
 #To-do:
@@ -17,9 +19,16 @@ library(sp)
 #Layers: 1. HealthyRide Stations
 #        2. Demographic information by Census Tract
 #to-do: User inputs the demographic information they want to display, and causes the shading of the polygons
-# on the map to change
+# on the map to change --- done!
+# count the number of times that there is an overlap between the polygons and the markers on top of that  -- done!
+#rename the columns & select options
+#create percentages
+#create graph with percentages of demographics on one axis and the number of bike racks available
+#add the popups and labels 
+
 #selects a census tract and the dataTable changes, and zooms to that census tract on the map
 
+# Accessing Data and Pre-Processing ---------------------------------------------------------------------------------------------------------
 
 #Loading in the Pittsburgh HealthyRide Stations data using WPRDC API
 # URL Encode the query
@@ -85,6 +94,9 @@ pitt_demog_info <- pitt_demog_info %>%
     mutate_all(funs(str_replace(., ",", ""))) %>%
     mutate_at(names(pitt_demog_info)[-1], as.numeric)
 
+#column selection 
+
+
 #merging census shape files and demographic information
 census_and_demog <- geo_join(pitt_census_tracts,
                              pitt_demog_info, by_sp = "tractce10", by_df = "census.tract", how = "left")
@@ -95,11 +107,14 @@ census_and_demog <- geo_join(pitt_census_tracts,
 #   rename()
 
 
+
+#Start creating the app --------------------------------------------------------------------------------------------------------------------
+
 # Define UI for application that draws a histogram
 ui <- fluidPage(
 
     # Application title
-    titlePanel("Bike Share Access in Pittsburgh"),
+    titlePanel("Is Bike Share Access Equitably Distributed In Pittsburgh?"),
 
     # Sidebar with a slider input for number of bins
     sidebarLayout(
@@ -151,13 +166,10 @@ server <- function(input, output) {
 
     output$pittmap <- renderLeaflet({
         
-        #creating color scheme for choroplets
-        #bins <- c(0, 1000, 2000, 3000, 4000, 5000, 6000, Inf)
-        pal <- colorNumeric("YlOrRd", domain = census_and_demog$RACE..Total.population)
-       # pal <- colorBin(, domain = census_and_demog$RACE..Total.population, bins = bins)
+       pal <- colorNumeric("YlOrRd", domain = census_and_demog$RACE..Total.population)
+       
 
         
-     
       
         pitt.map <- leaflet(data = stations) %>%
             #selecting a basemap
@@ -170,8 +182,7 @@ server <- function(input, output) {
                        weight = 2,
                        opacity = 1,
                         layerId = ~census_and_demog$tractce10,
-                        fillColor = ~pal(RACE..Total.population),
-                        color = "blue",
+                        color = ~pal(RACE..Total.population),
                         fillOpacity = 0.7,
                         stroke = TRUE,
                         highlightOptions = highlightOptions(color = "black", 
@@ -187,9 +198,11 @@ server <- function(input, output) {
       
     })
     
-    #pitt_demog_info 
-    #pitt_census_tracts
     
+
+    #pitt_demog_info
+    #pitt_census_tracts
+
     #Subset for the census tract of interest
     census_subset <- reactive({
         pitt_demog_info %>% 
@@ -198,26 +211,22 @@ server <- function(input, output) {
     })
     
     
-   #change the criteria for the color palette based on demographic info input
-    demogpal <- reactive({
-   
-      select_demog <- input$demogSelect
-      colorNumeric("YlOrRd", domain =  census_and_demog$select_demog)
-
-   
-     })
-   # 
+    
+    
    #updating the map each time a new demographic select option is picked
     observe({
 
-      pal <- demogpal()
+      #change the criteria for the color palette based on demographic info input
+      census_and_demog@data$select_demog <- census_and_demog@data[[input$demogSelect]]
+      pal <- colorNumeric("YlOrRd", domain = census_and_demog$select_demog)
+      
 
       leafletProxy("pittmap") %>%
        clearShapes() %>%
-        addPolygons(data = census_and_demog,
+         addPolygons(data = census_and_demog,
                     weight = 2,
                     opacity = 1,
-                    fillColor = ~pal(census_and_demog$select_demog))
+                    color = ~pal(select_demog))
                     # color = "white",
                     # stroke = TRUE,
                     # label = tract_labels,
