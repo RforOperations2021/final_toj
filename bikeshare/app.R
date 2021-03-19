@@ -1,6 +1,7 @@
 
 library(shiny)
 library(leaflet)
+library(plotly)
 library(leaflet.extras)
 library(DT)
 library(rgdal)# readOGR
@@ -20,10 +21,8 @@ library(shinydashboard)
 #Layers: 1. HealthyRide Stations
 #        2. Demographic information by Census Tract
 #to-do:
-#change the dataTable output
-#edit the download button 
+
 #use mutiple select inputs
-#add tabset panel 
 #create graph with percentages of demographics on one axis and the number of bike racks available
 #change zoom based on census tract input
 #change shinydashboard theme
@@ -184,7 +183,7 @@ body <- dashboardBody(tabItems(
           
           #adding an action button for the demographics select option
           actionButton("add_demog",
-                       label = "Click to Change Demographic Information"),
+                       label = "Click to Change Demographic Information Displayed"),
           
           #creating some visual space 
           br(), br(),
@@ -210,13 +209,39 @@ body <- dashboardBody(tabItems(
   #Bike Share Distribution Exploration Page -----------------------------------------------
   tabItem("bikes",
           
-          selectInput("census_tract", 
-                      label = "Choose a Census Tract in Pittsburgh:",
-                      choices = pitt_census_tracts$tractce10),
+          selectInput("per_select_1",
+                      label = "Choose Demographic Information for First Line",
+                      choices = c("Percentage.of.White.Residents", "Percentage.of.Black.Residents",
+                                  "Percentage.of.American.Indian.Residents",
+                                  "Percentage.of.Asian.Residents",
+                                  "Percentage.of.Hispanic.Latino.Residents"
+                                  )),
+
+          selectInput("per_select_2",
+                      label = "Choose Demographic Information for Second Line",
+                      choices = c("Percentage.of.White.Residents", "Percentage.of.Black.Residents",
+                                  "Percentage.of.American.Indian.Residents",
+                                  "Percentage.of.Asian.Residents",
+                                  "Percentage.of.Hispanic.Latino.Residents"
+                      )),
+
           
-          #adding an action button for the census tract select option
-          actionButton("addtract",
-                       label = "Select Census Tract")
+          plotlyOutput("numbikes_by_demo"),
+          
+          br(), br(),
+          
+          selectInput("census_tract",
+                      label = "Select Census Tracts to Plot",
+                      choices = census_and_demog@data$census.tract,
+                      multiple = TRUE,
+                      selectize = TRUE,
+                      selected = c("040500", "040400")),
+          
+        br(), br(),
+        
+        plotlyOutput("num_per_tract")
+          
+          
           
           ),
   
@@ -224,10 +249,27 @@ body <- dashboardBody(tabItems(
   #Full Dataset Page -----------------------------------------
   tabItem("fullData",
           
+          #allows user to pick the columns they want to see in the data table
+          selectInput(inputId = "columns",
+                      label = "Pick the Columns You Want to Display:",
+                      choices = c("Total.Population", "Number.of.White.Residents", 
+                                  "Number.of.Black.Residents", "Number.of.American.Indian.Residents",
+                                  "Number.of.Asian.Residents", "Number.of.Hispanic.Latino.Residents",
+                                  "Percentage.of.White.Residents", "Percentage.of.Black.Residents",
+                                  "Percentage.of.American.Indian.Residents",
+                                  "Percentage.of.Asian.Residents",
+                                  "Percentage.of.Hispanic.Latino.Residents"),
+                      multiple = TRUE,
+                      selectize = TRUE,
+                      selected = c("Percentage.of.White.Residents", "Percentage.of.Black.Residents")),
+          
+          
           #creates download button for users
           downloadButton(outputId = "downloadData",
                          label = "Click to Download Full Dataset"),
           
+          #creates some visual space between the two items
+          br(), br(),
           
           dataTableOutput("full_data_table")
     
@@ -240,10 +282,24 @@ body <- dashboardBody(tabItems(
   
 
  
-ui <- dashboardPage(header, sidebar, body)
+ui <- dashboardPage(skin = "purple", header, sidebar, body)
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
+  
+  #subsets the census and demographics data to just the desired information
+  full_data <- census_and_demog@data %>% 
+    select(census.tract, Total.Population, Number.of.White.Residents, 
+           Number.of.Black.Residents, Number.of.American.Indian.Residents,
+           Number.of.Asian.Residents, Number.of.Hispanic.Latino.Residents,
+           Percentage.of.White.Residents, Percentage.of.Black.Residents,
+           Percentage.of.American.Indian.Residents,
+           Percentage.of.Asian.Residents,
+           Percentage.of.Hispanic.Latino.Residents,
+           num.stations.per.tract)# %>% 
+    # rename("Census Tract" = census.tract,
+    #        "Number of HealthyRide Stations" = num.stations.per.tract)
+    # 
 
   
         #adding basic labels to the leaflet map
@@ -337,8 +393,42 @@ server <- function(input, output) {
 
     })
     
-    #does something when the census tract is selected
     
+    full_data_subset <-  reactive({
+      full_data %>% 
+        select(input$per_select_1, num.stations.per.tract) #input$per_select_2, 
+    })
+    
+    
+   
+    # output$numbikes_by_demo <- renderPlotly ({
+    # 
+    #  # full_data_subset()$first_select <- full_data_subset()[input$per_select_1]
+    # 
+    #   ggplotly(
+    #     ggplot(full_data_subset(),
+    #            aes(x = input$per_select_1, y = num.stations.per.tract)) +
+    #       geom_line()
+    #     
+    #   )
+    #   
+    # })
+    
+
+    
+    # full_data <- census_and_demog@data %>% 
+    #   select(census.tract, Total.Population, Number.of.White.Residents, 
+    #          Number.of.Black.Residents, Number.of.American.Indian.Residents,
+    #          Number.of.Asian.Residents, Number.of.Hispanic.Latino.Residents,
+    #          Percentage.of.White.Residents, Percentage.of.Black.Residents,
+    #          Percentage.of.American.Indian.Residents,
+    #          Percentage.of.Asian.Residents,
+    #          Percentage.of.Hispanic.Latino.Residents,
+    #          num.stations.per.tract) %>% 
+    #   rename("Census Tract" = census.tract,
+    #          "Number of HealthyRide Stations" = num.stations.per.tract)
+    
+    #does something when the census tract is selected
     # eventReactive(input$addtract,{
     #   leafletProxy("pittmap") %>% 
     #     
@@ -346,6 +436,28 @@ server <- function(input, output) {
     #   
     # })
     
+    census_subset <- reactive({
+      full_data %>% 
+        filter(census.tract %in% input$census_tract) %>% 
+        select(census.tract, num.stations.per.tract)
+    })
+    
+    output$num_per_tract <- renderPlotly ({
+
+
+      ggplotly(
+        ggplot(census_subset(),
+               aes(x = census.tract, 
+                   y = num.stations.per.tract,
+                   fill = census.tract)) +
+          geom_bar(stat = "identity") +
+          labs(x = "Census Tracts",
+            y = "Number of HealthyRide Stations") +
+          ggtitle("Number of HealthyRide Stations per Census Tract")
+
+      )
+
+    })
     
     
     observeEvent(input$pittmap_shape_click, {
@@ -380,17 +492,6 @@ server <- function(input, output) {
    
    
    
-   full_data <- census_and_demog@data %>% 
-     select(census.tract, Total.Population, Number.of.White.Residents, 
-            Number.of.Black.Residents, Number.of.American.Indian.Residents,
-            Number.of.Asian.Residents, Number.of.Hispanic.Latino.Residents,
-            Percentage.of.White.Residents, Percentage.of.Black.Residents,
-            Percentage.of.American.Indian.Residents,
-            Percentage.of.Asian.Residents,
-            Percentage.of.Hispanic.Latino.Residents,
-            num.stations.per.tract) %>% 
-     rename("Census Tract" = census.tract,
-            "Number of HealthyRide Stations" = num.stations.per.tract)
    
    #adding in the data to be downloaded in csv format
    output$downloadData <- downloadHandler(
@@ -400,10 +501,20 @@ server <- function(input, output) {
      }
    )
    
+   #subsets the data to just the columns the user requests
+   column_select <- reactive({
+     full_data %>% 
+       select(census.tract, input$columns, num.stations.per.tract)  %>% 
+         rename("Census Tract" = census.tract,
+                    "Number of HealthyRide Stations" = num.stations.per.tract)
+             
+   })
    
+   
+   #creates a datatable subset to just the desired information
    output$full_data_table <- DT::renderDataTable({
      
-     DT::datatable(data = full_data,
+     DT::datatable(data = column_select(),
                    rownames = FALSE)
    })
     
