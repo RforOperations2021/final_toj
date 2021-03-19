@@ -11,6 +11,7 @@ library(jsonlite) # fromJSON
 library(utils) # URLencode functions
 library(sp)
 library(sf)
+library(shinydashboard)
 #library(GISTools) # used to get overlapping polygons
 
 
@@ -18,25 +19,18 @@ library(sf)
 # Base map: Census tracts in Pittsburgh
 #Layers: 1. HealthyRide Stations
 #        2. Demographic information by Census Tract
-#to-do: User inputs the demographic information they want to display, and causes the shading of the polygons
-# on the map to change --- done! :)
-# count the number of times that there is an overlap between the polygons and the markers on top of that  -- done!
-#rename the columns & select options  --- done! :)
-#create percentages --- done! :)
+#to-do:
+# count the number of times that there is an overlap between the polygons and the markers on top of that  -- done! (add to data table)
 #change the dataTable output
 #edit the download button 
-#update the legend  -- done! :)
-# if there is time, change to shinydashboard 
-
-#select mutiple select inputs
-
-
+#use mutiple select inputs
 #add tabset panel 
 #create graph with percentages of demographics on one axis and the number of bike racks available
 #add the popups and labels 
 #change zoom based on census tract input
+#add dynamic polygon labels when the demographic input is changed
+#change shinydashboard theme
 
-#selects a census tract and the dataTable changes, and zooms to that census tract on the map
 
 # Accessing Data and Pre-Processing ---------------------------------------------------------------------------------------------------------
 
@@ -153,60 +147,85 @@ census_and_demog@data$num.stations.per.tract <- num.stations.per.tract
 
 
 
-#Start creating the app --------------------------------------------------------------------------------------------------------------------
+#Start creating the dashboard --------------------------------------------------------------------------------------------------------------------
 
-# Define UI for application that draws a histogram
-ui <- fluidPage(
 
-    # Application title
-    titlePanel("Is Bike Share Access Equitably Distributed In Pittsburgh?"),
+#Dashboard Header & Title-----------------------------------------------------------
+header <- dashboardHeader(title = "Is Bike Share Access Equitably Distributed In Pittsburgh?",
+                         titleWidth = 600)
 
-    # Sidebar with a slider input for number of bins
-    sidebarLayout(
-        sidebarPanel(
-            selectInput("census_tract", 
-                        label = "Choose a Census Tract in Pittsburgh:",
-                        choices = pitt_census_tracts$tractce10),
-         
-            
-            #adding an action button for the census tract select option
-            actionButton("addtract",
-                         label = "Select Census Tract"),
-            
-            #select input for the demographic information that you want to look at
-            selectInput("demogSelect",
-                        label = "Choose the Demographic Information to Map:",
-                        choices = c("Total.Population", "Number.of.White.Residents", 
-                                    "Number.of.Black.Residents", "Number.of.American.Indian.Residents",
-                                    "Number.of.Asian.Residents", "Number.of.Hispanic.Latino.Residents",
-                                    "Percentage.of.White.Residents", "Percentage.of.Black.Residents",
-                                    "Percentage.of.American.Indian.Residents",
-                                    "Percentage.of.Asian.Residents",
-                                    "Percentage.of.Hispanic.Latino.Residents")),
-            
-            #adding an action button for the demographics select option
-            actionButton("add_demog",
-                         label = "Click to Change Demographic Information"),
-            
-            #creating some visual space 
-            br(), br(),
-            
-            #creates download button for users
-            downloadButton(outputId = "downloadData",
-                           label = "Download "
-            )
-            
-           
-        ),
 
-        # Show a plot of the generated distribution
-        mainPanel(
+#Dashboard Sidebar -----------------------------------------
+sidebar <- dashboardSidebar(
+  sidebarMenu(
+    id = "tabs",
+    
+    #Menu Items ----------------------------------------
+    menuItem("Map Overview", icon = icon("map-marked"), tabName = "overview"),
+    menuItem("Bike Share Distribution", icon = icon("bicycle"), tabName = "bikes")
+  )
+)
+
+
+#Dashboard body -------------------------------------
+body <- dashboardBody(tabItems(
+  
+  #Overview page ----------------------------------
+  tabItem("overview",
+          
+          #select input for the demographic information that you want to look at
+          selectInput("demogSelect",
+                      label = "Choose the Demographic Information to Map:",
+                      choices = c("Total.Population", "Number.of.White.Residents", 
+                                  "Number.of.Black.Residents", "Number.of.American.Indian.Residents",
+                                  "Number.of.Asian.Residents", "Number.of.Hispanic.Latino.Residents",
+                                  "Percentage.of.White.Residents", "Percentage.of.Black.Residents",
+                                  "Percentage.of.American.Indian.Residents",
+                                  "Percentage.of.Asian.Residents",
+                                  "Percentage.of.Hispanic.Latino.Residents")),
+          
+          #adding an action button for the demographics select option
+          actionButton("add_demog",
+                       label = "Click to Change Demographic Information"),
+          
+          #creating some visual space 
+          br(), br(),
+          
+          #creates download button for users
+          downloadButton(outputId = "downloadData",
+                         label = "Download"),
+          
+          
+          # Shows the leaflet map
+          
             # Map Output
             leafletOutput("pittmap"),
             dataTableOutput("demog_table")
-        )
-    )
+        
+          
+          
+          ),
+  #Bike Share Distribution Exploration Page -----------------------------------------------
+  tabItem("bikes",
+          
+          selectInput("census_tract", 
+                      label = "Choose a Census Tract in Pittsburgh:",
+                      choices = pitt_census_tracts$tractce10),
+          
+          #adding an action button for the census tract select option
+          actionButton("addtract",
+                       label = "Select Census Tract")
+          
+          )
+
 )
+  
+  
+)
+  
+
+ 
+ui <- dashboardPage(header, sidebar, body)
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
