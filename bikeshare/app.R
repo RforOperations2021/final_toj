@@ -114,11 +114,11 @@ pitt_demog_info <-
 
 #creates new columns
 pitt_demog_info <- pitt_demog_info %>%
-  mutate("Percentage of White Residents" = ifelse(`Number of White Residents` != 0,round((`Number of White Residents`/`Total Population`)*100, digits = 0), 0),
-         "Percentage of Black Residents" = ifelse(`Number of Black Residents` != 0,round((`Number of Black Residents`/`Total Population`)*100, digits = 0), 0),
-         "Percentage of American Indian Residents" = ifelse(`Number of American Indian Residents` != 0,round((`Number of American Indian Residents`/`Total Population`)*100, digits = 0), 0),
-         "Percentage of Asian Residents" = ifelse(`Number of Asian Residents` != 0,round((`Number of Asian Residents`/`Total Population`)*100, digits = 0), 0),
-         "Percentage of Hispanic/Latino Residents" = ifelse(`Number of Hispanic/Latino Residents` != 0,round((`Number of Hispanic/Latino Residents`/`Total Population`)*100, digits = 0), 0)
+  mutate("Percentage of White Residents" = ifelse(`Number of White Residents` != 0,round((`Number of White Residents`/`Total Population`)*100, digits = 2), 0),
+         "Percentage of Black Residents" = ifelse(`Number of Black Residents` != 0,round((`Number of Black Residents`/`Total Population`)*100, digits = 2), 0),
+         "Percentage of American Indian Residents" = ifelse(`Number of American Indian Residents` != 0,round((`Number of American Indian Residents`/`Total Population`)*100, digits = 2), 0),
+         "Percentage of Asian Residents" = ifelse(`Number of Asian Residents` != 0,round((`Number of Asian Residents`/`Total Population`)*100, digits = 2), 0),
+         "Percentage of Hispanic/Latino Residents" = ifelse(`Number of Hispanic/Latino Residents` != 0,round((`Number of Hispanic/Latino Residents`/`Total Population`)*100, digits = 2), 0)
   )
 
 
@@ -231,11 +231,18 @@ ui <- dashboardPage(header, sidebar, body)
 server <- function(input, output) {
 
   
-         #adding basic labels to the leaflet map
- 
-        tract_labels <- sprintf("<strong> Census Tract: </strong><br/> %s <br/> Number of People: %g ",
-                          census_and_demog$census.tract, census_and_demog$Total.Population) %>% 
+        #adding basic labels to the leaflet map
+        tract_labels <- reactive (
+          sprintf("<strong> Census Tract: </strong>%s <br/> <strong>%s</strong>: %s <br/> <strong> Number of HealthyRide Stations: </strong> %s ",
+                          census_and_demog$census.tract, input$demogSelect, 
+                          prettyNum(census_and_demog[[input$demogSelect]], big.mark = ","),
+                          census_and_demog$num.stations.per.tract) %>% # census_and_demog$Total.Population) %>% 
                          lapply(htmltools::HTML)
+        )
+        
+        #customizing the label for the station markers
+        station_marker_label <- sprintf("<strong> Station Name: </strong><br/> %s",
+                                        stations$`Station Name`) %>% lapply(htmltools::HTML)
 
          output$pittmap <- renderLeaflet({
         
@@ -255,18 +262,15 @@ server <- function(input, output) {
                        weight = 2,
                        opacity = 1,
                         layerId = ~census_and_demog$tractce10,
-                        color = ~pal(Total.Population),
                         fillOpacity = 0.7,
                         stroke = TRUE,
                         highlightOptions = highlightOptions(color = "black", 
-                                                            weight = 5),
-                        label = tract_labels)%>%
+                                                            weight = 5,
+                                                            bringToFront = TRUE)) %>% 
             # #add markers on the map for the healthy ride bike station locations
             addMarkers(~Longitude, ~Latitude, 
-                       label = ~`Station Name`,
-                       clusterOptions = markerClusterOptions()) %>% 
-            addLegend(pal = pal, values = ~census_and_demog$Total.Population, 
-                      title = "Total.Population",  position = "bottomright")
+                       label = station_marker_label,
+                       clusterOptions = markerClusterOptions())
         
         pitt.map
         
@@ -301,10 +305,12 @@ server <- function(input, output) {
          addPolygons(data = census_and_demog,
                     weight = 2,
                     opacity = 1,
+                    label = tract_labels(),
                     color = ~pal(select_demog),
                     fillOpacity = 0.7,
                     highlightOptions = highlightOptions(color = "black",
-                                                        weight = 5))
+                                                        weight = 5,
+                                                        bringToFront = TRUE))
 
 
     })
@@ -326,6 +332,15 @@ server <- function(input, output) {
 
     })
     
+    #does something when the census tract is selected
+    
+    # eventReactive(input$addtract,{
+    #   leafletProxy("pittmap") %>% 
+    #     
+    #   
+    #   
+    # })
+    
     
     
     observeEvent(input$pittmap_shape_click, {
@@ -336,14 +351,7 @@ server <- function(input, output) {
          setView(lng = click_tract$lng, lat = click_tract$lat, zoom = 15)
     })
 
-    #does something when the census tract is selected
-    
-    # eventReactive(input$addtract,{
-    #   leafletProxy("pittmap") %>% 
-    #     
-    #   
-    #   
-    # })
+   
     
 
    
